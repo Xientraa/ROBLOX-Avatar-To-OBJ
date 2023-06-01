@@ -1,5 +1,5 @@
 import requests
-from typing import TypedDict, Any
+from typing import TypedDict, Any, Optional
 
 
 class AvatarInformation(TypedDict):
@@ -33,3 +33,24 @@ def getAvatarInformation(userId: int) -> AvatarInformation:
         json: AvatarInformation = r.json()
         return json
     raise requests.HTTPError
+
+
+def downloadFileFromHash(
+    hash: str, fileExtension: str, fileName: Optional[str] = None
+) -> None:
+    r = requests.get(getCdnUrlFromHash(hash))
+    if r.status_code == 200:
+        open(f"./{fileName or hash}.{fileExtension}", "wb").write(r.content)
+        return
+    raise requests.HTTPError
+
+
+def downloadAvatar(userId: int) -> None:
+    avatarInformation = getAvatarInformation(userId)
+    downloadFileFromHash(avatarInformation["obj"], "obj", avatarInformation["obj"])
+    downloadFileFromHash(avatarInformation["mtl"], "mtl", avatarInformation["obj"])
+    materialFileContents = open(f'./{avatarInformation["obj"]}.mtl', "r").read()
+    for hash in avatarInformation["textures"]:
+        materialFileContents = materialFileContents.replace(hash, f"{hash}.png")
+        downloadFileFromHash(hash, "png", hash)
+    open(f'./{avatarInformation["obj"]}.mtl', "w").write(materialFileContents)
