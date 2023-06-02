@@ -1,5 +1,9 @@
-import requests
-from typing import TypedDict, Any, Optional
+import requests, os.path, json
+from os import mkdir
+from typing import TypedDict, Any
+
+SRC_DIR = os.path.dirname(os.path.abspath(__file__))
+CONFIG = json.load(open(SRC_DIR + "/config.json", "r"))
 
 
 class AvatarInformation(TypedDict):
@@ -35,22 +39,47 @@ def getAvatarInformation(userId: int) -> AvatarInformation:
     raise requests.HTTPError
 
 
-def downloadFileFromHash(
-    hash: str, fileExtension: str, fileName: Optional[str] = None
-) -> None:
+def downloadFileFromHash(hash: str, filePath: str) -> None:
     r = requests.get(getCdnUrlFromHash(hash))
     if r.status_code == 200:
-        open(f"./{fileName or hash}.{fileExtension}", "wb").write(r.content)
+        open(filePath, "wb").write(r.content)
         return
     raise requests.HTTPError
 
 
-def downloadAvatar(userId: int) -> None:
+def downloadAvatar(userId: int, downloadPath: str) -> None:
     avatarInformation = getAvatarInformation(userId)
-    downloadFileFromHash(avatarInformation["obj"], "obj", avatarInformation["obj"])
-    downloadFileFromHash(avatarInformation["mtl"], "mtl", avatarInformation["obj"])
-    materialFileContents = open(f'./{avatarInformation["obj"]}.mtl', "r").read()
+    downloadPath = f'{downloadPath}/{avatarInformation["obj"]}'
+    try:
+        mkdir(downloadPath)
+    except:
+        pass
+
+    downloadFileFromHash(
+        avatarInformation["obj"], f'{downloadPath}/{avatarInformation["obj"]}.obj'
+    )
+    downloadFileFromHash(
+        avatarInformation["mtl"], f'{downloadPath}/{avatarInformation["obj"]}.mtl'
+    )
+
+    materialFileContents = open(
+        f'{downloadPath}/{avatarInformation["obj"]}.mtl', "r"
+    ).read()
     for hash in avatarInformation["textures"]:
         materialFileContents = materialFileContents.replace(hash, f"{hash}.png")
-        downloadFileFromHash(hash, "png", hash)
-    open(f'./{avatarInformation["obj"]}.mtl', "w").write(materialFileContents)
+        downloadFileFromHash(hash, f"{downloadPath}/{hash}.png")
+
+    open(f'{downloadPath}/{avatarInformation["obj"]}.mtl', "w").write(
+        materialFileContents
+    )
+
+
+if __name__ == "__main__":
+    while True:
+        inputString = input("UserID >> ")
+        try:
+            userId = int(inputString)
+            print(f"[INFO] Downloading userId: {userId}")
+            downloadAvatar(userId, CONFIG["DownloadDirectory"])
+        except ValueError:
+            print("[ERROR] Please makesure input is a valid number")
