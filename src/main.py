@@ -226,7 +226,8 @@ def downloadAvatarFromUserId(
     )
 
     offsetObjVertices(
-        f'{downloadPath}/{avatarFileHashes["obj"]}.obj', Vector(0, -101.02916, 0, 0)
+        f'{downloadPath}/{avatarFileHashes["obj"]}.obj',
+        Vector(0, -avatarFileHashes["aabb"]["min"]["y"], 0, 0),
     )
     unplugAlphaMapFromMTL(f'{downloadPath}/{avatarFileHashes["obj"]}.mtl')
 
