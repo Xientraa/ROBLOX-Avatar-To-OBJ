@@ -1,9 +1,44 @@
 import requests, os.path, json
 from os import mkdir
-from typing import TypedDict, Any, Optional
+from typing import TypedDict, Any, Optional, Literal
+from time import sleep
 
 SRC_DIR = os.path.dirname(os.path.abspath(__file__))
-CONFIG = json.load(open(SRC_DIR + "/config.json", "r"))
+CONFIG = json.load(
+    open(SRC_DIR + "/secret.config.json")
+    if os.path.exists(SRC_DIR + "/secret.config.json")
+    else open(SRC_DIR + "/config.json", "r")
+)
+
+
+class RobloSecurityCookie:
+    def __init__(self, cookie: str) -> None:
+        self.cookie = cookie
+        self.xCSRFToken = ""
+
+        if RobloSecurityCookie.isRobloSecurityCookieDead(self.cookie):
+            raise Exception("ROBLOSECURITY cookie is dead.")
+        self.refreshXCSRFToken()
+
+    @staticmethod
+    def isRobloSecurityCookieDead(cookie: str) -> bool:
+        return (
+            requests.get(
+                "https://users.roblox.com/v1/users/authenticated",
+                cookies={".ROBLOSECURITY": cookie},
+            ).status_code
+            == 401
+        )
+
+    def refreshXCSRFToken(self) -> str:
+        r = requests.post(
+            "https://auth.roblox.com/v2/logout", cookies={".ROBLOSECURITY": self.cookie}
+        )
+        token = r.headers.get("x-csrf-token")
+        if token == None:
+            raise Exception("Unable to retrieve x-csrf-token")
+        self.xCSRFToken = token
+        return token
 
 
 class Vector:
@@ -41,7 +76,7 @@ class Vector:
         )
 
 
-class AvatarInformation(TypedDict):
+class ModelData(TypedDict):
     camera: Any
     aabb: Any
     mtl: str
@@ -56,20 +91,10 @@ def getCdnUrlFromHash(hash: str) -> str:
     return f"https://t{st % 8}.rbxcdn.com/{hash}"
 
 
-def getAvatarImageUrl(userId: int) -> str:
-    r = requests.get(
-        f"https://thumbnails.roblox.com/v1/users/avatar-3d?userId={userId}"
-    )
-    if r.status_code == 200:
-        return r.json()["imageUrl"]
-    raise requests.HTTPError
-
-
-def getAvatarInformation(userId: int) -> AvatarInformation:
-    url = getAvatarImageUrl(userId)
+def getAvatarFileHashesFromUrl(url: str) -> ModelData:
     r = requests.get(url)
     if r.status_code == 200:
-        json: AvatarInformation = r.json()
+        json: ModelData = r.json()
         return json
     raise requests.HTTPError
 
@@ -91,7 +116,7 @@ def unplugAlphaMapFromMTL(filePath: str) -> None:
     open(filePath, "w").write("\n".join(lines))
 
 
-def offsetAvatarOBJ(filePath: str, offsetVector: Vector) -> None:
+def offsetObjVertices(filePath: str, offsetVector: Vector) -> None:
     lines = open(filePath, "r").readlines()
     for index, line in enumerate(lines):
         if line.startswith("v "):
@@ -103,44 +128,117 @@ def offsetAvatarOBJ(filePath: str, offsetVector: Vector) -> None:
     open(filePath, "w").write("\n".join(lines))
 
 
-def downloadAvatar(userId: int, downloadPath: str) -> None:
+def getAvatarInformation(userId: int) -> dict[str, Any]:
+    r = requests.get(f"https://avatar.roblox.com/v1/users/{userId}/avatar")
+    if r.status_code == 400:
+        raise Exception("User doesn't exist!")
+    return r.json()
+
+
+def generateCharacterModelCdnUrl(
+    avatarInformation: dict[str, Any],
+    cookie: RobloSecurityCookie,
+    avatarType: Literal["R6", "R15"],
+    scales: Optional[dict[str, int]] = None,
+) -> str:
+    while True:
+        r = requests.post(
+            "https://avatar.roblox.com/v1/avatar/render",
+            json={
+                "thumbnailConfig": {
+                    "thumbnailId": 3,
+                    "thumbnailType": "3d",
+                    "size": "420x420",
+                },
+                "avatarDefinition": {
+                    "assets": [
+                        {
+                            "id": asset["id"],
+                            "meta": asset["meta"] if asset.get("meta") else None,
+                        }
+                        for asset in avatarInformation["assets"]
+                    ],
+                    "bodyColors": {
+                        "headColor": "#CC8E69",
+                        "leftArmColor": "#CC8E69",
+                        "leftLegColor": "#CC8E69",
+                        "rightArmColor": "#CC8E69",
+                        "rightLegColor": "#CC8E69",
+                        "torsoColor": "#CC8E69",
+                    },
+                    "scales": (
+                        scales
+                        or {
+                            "height": 1,
+                            "width": 1,
+                            "head": 1,
+                            "depth": 1,
+                            "proportion": 0,
+                            "bodyType": 0,
+                        }
+                    ),
+                    "playerAvatarType": {"playerAvatarType": avatarType},
+                },
+            },
+            headers={"x-csrf-token": cookie.xCSRFToken},
+            cookies={".ROBLOSECURITY": cookie.cookie},
+        )
+
+        if r.status_code == 200:
+            json = r.json()
+            if json["state"] == "Completed":
+                return json["imageUrl"]
+            sleep(1)
+        elif r.status_code == 403:
+            cookie.refreshXCSRFToken()
+
+
+def downloadAvatarFromUserId(
+    userId: int, downloadPath: str, cookie: RobloSecurityCookie
+) -> None:
     avatarInformation = getAvatarInformation(userId)
-    downloadPath = f'{downloadPath}/{avatarInformation["obj"]}'
+    avatarFileHashes = getAvatarFileHashesFromUrl(
+        generateCharacterModelCdnUrl(avatarInformation, cookie, "R6")
+    )
+
+    downloadPath = f'{downloadPath}/{avatarFileHashes["obj"]}'
     try:
         mkdir(downloadPath)
     except:
         pass
 
     downloadFileFromHash(
-        avatarInformation["obj"], f'{downloadPath}/{avatarInformation["obj"]}.obj'
+        avatarFileHashes["obj"], f'{downloadPath}/{avatarFileHashes["obj"]}.obj'
     )
     downloadFileFromHash(
-        avatarInformation["mtl"], f'{downloadPath}/{avatarInformation["obj"]}.mtl'
+        avatarFileHashes["mtl"], f'{downloadPath}/{avatarFileHashes["obj"]}.mtl'
     )
 
-    offsetAvatarOBJ(
-        f'{downloadPath}/{avatarInformation["obj"]}.obj', Vector(0, -101.02916, 0, 0)
+    offsetObjVertices(
+        f'{downloadPath}/{avatarFileHashes["obj"]}.obj', Vector(0, -101.02916, 0, 0)
     )
-    unplugAlphaMapFromMTL(f'{downloadPath}/{avatarInformation["obj"]}.mtl')
+    unplugAlphaMapFromMTL(f'{downloadPath}/{avatarFileHashes["obj"]}.mtl')
 
     materialFileContents = open(
-        f'{downloadPath}/{avatarInformation["obj"]}.mtl', "r"
+        f'{downloadPath}/{avatarFileHashes["obj"]}.mtl', "r"
     ).read()
-    for hash in avatarInformation["textures"]:
+    for hash in avatarFileHashes["textures"]:
         materialFileContents = materialFileContents.replace(hash, f"{hash}.png")
         downloadFileFromHash(hash, f"{downloadPath}/{hash}.png")
 
-    open(f'{downloadPath}/{avatarInformation["obj"]}.mtl', "w").write(
+    open(f'{downloadPath}/{avatarFileHashes["obj"]}.mtl', "w").write(
         materialFileContents
     )
 
 
 if __name__ == "__main__":
+    cookie = RobloSecurityCookie(CONFIG["Cookie"])
+
     while True:
         inputString = input("UserID >> ")
         try:
             userId = int(inputString)
             print(f"[INFO] Downloading userId: {userId}")
-            downloadAvatar(userId, CONFIG["DownloadDirectory"])
+            downloadAvatarFromUserId(userId, CONFIG["DownloadDirectory"], cookie)
         except ValueError:
             print("[ERROR] Please make sure input is a valid number")
