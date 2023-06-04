@@ -160,3 +160,6 @@ cython_debug/
 #.idea/
 
 src/secret.config.json
+*/*.obj
+*/*.mtl
+*/*.png
