@@ -82,6 +82,15 @@ def downloadFileFromHash(hash: str, filePath: str) -> None:
     raise requests.HTTPError
 
 
+def unplugAlphaMapFromMTL(filePath: str) -> None:
+    lines = open(filePath, "r").readlines()
+    for index, line in enumerate(lines):
+        if line.startswith("map_d "):
+            lines[index] = f"# {line}"
+        lines[index] = lines[index].strip()
+    open(filePath, "w").write("\n".join(lines))
+
+
 def offsetAvatarOBJ(filePath: str, offsetVector: Vector) -> None:
     lines = open(filePath, "r").readlines()
     for index, line in enumerate(lines):
@@ -112,6 +121,7 @@ def downloadAvatar(userId: int, downloadPath: str) -> None:
     offsetAvatarOBJ(
         f'{downloadPath}/{avatarInformation["obj"]}.obj', Vector(0, -101.02916, 0, 0)
     )
+    unplugAlphaMapFromMTL(f'{downloadPath}/{avatarInformation["obj"]}.mtl')
 
     materialFileContents = open(
         f'{downloadPath}/{avatarInformation["obj"]}.mtl', "r"
