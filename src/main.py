@@ -1,6 +1,7 @@
 import requests, os.path, json
 from os import mkdir
 from typing import TypedDict, Any, Optional, Literal
+from bodyColors import convertAvatarInformationBodyColorIdsToHex
 from time import sleep
 
 SRC_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -139,7 +140,7 @@ def generateCharacterModelCdnUrl(
     avatarInformation: dict[str, Any],
     cookie: RobloSecurityCookie,
     avatarType: Literal["R6", "R15"],
-    scales: Optional[dict[str, int]] = None,
+    useDefaultScale: bool,
 ) -> str:
     while True:
         r = requests.post(
@@ -158,24 +159,22 @@ def generateCharacterModelCdnUrl(
                         }
                         for asset in avatarInformation["assets"]
                     ],
-                    "bodyColors": {
-                        "headColor": "#CC8E69",
-                        "leftArmColor": "#CC8E69",
-                        "leftLegColor": "#CC8E69",
-                        "rightArmColor": "#CC8E69",
-                        "rightLegColor": "#CC8E69",
-                        "torsoColor": "#CC8E69",
-                    },
+                    "bodyColors": convertAvatarInformationBodyColorIdsToHex(
+                        avatarInformation["bodyColors"]
+                    ),
                     "scales": (
-                        scales
-                        or {
-                            "height": 1,
-                            "width": 1,
-                            "head": 1,
-                            "depth": 1,
-                            "proportion": 0,
-                            "bodyType": 0,
-                        }
+                        (
+                            {
+                                "height": 1,
+                                "width": 1,
+                                "head": 1,
+                                "depth": 1,
+                                "proportion": 0,
+                                "bodyType": 0,
+                            }
+                            if useDefaultScale
+                            else avatarInformation["scales"]
+                        )
                     ),
                     "playerAvatarType": {"playerAvatarType": avatarType},
                 },
@@ -184,21 +183,33 @@ def generateCharacterModelCdnUrl(
             cookies={".ROBLOSECURITY": cookie.cookie},
         )
 
-        if r.status_code == 200:
-            json = r.json()
-            if json["state"] == "Completed":
-                return json["imageUrl"]
-            sleep(1)
-        elif r.status_code == 403:
-            cookie.refreshXCSRFToken()
+        match r.status_code:
+            case 200:
+                json = r.json()
+                if json["state"] == "Completed":
+                    return json["imageUrl"]
+                sleep(1)
+            case 403:
+                cookie.refreshXCSRFToken()
+            case 429:
+                raise requests.HTTPError("Too many requests!")
+            case _:
+                print(r.status_code)
+                raise requests.HTTPError()
 
 
 def downloadAvatarFromUserId(
-    userId: int, downloadPath: str, cookie: RobloSecurityCookie
+    userId: int,
+    downloadPath: str,
+    cookie: RobloSecurityCookie,
+    avatarType: Literal["R6", "R15"],
+    useDefaultScale: bool,
 ) -> None:
     avatarInformation = getAvatarInformation(userId)
     avatarFileHashes = getAvatarFileHashesFromUrl(
-        generateCharacterModelCdnUrl(avatarInformation, cookie, "R6")
+        generateCharacterModelCdnUrl(
+            avatarInformation, cookie, avatarType, useDefaultScale
+        )
     )
 
     downloadPath = f'{downloadPath}/{avatarFileHashes["obj"]}'
@@ -239,6 +250,8 @@ if __name__ == "__main__":
         try:
             userId = int(inputString)
             print(f"[INFO] Downloading userId: {userId}")
-            downloadAvatarFromUserId(userId, CONFIG["DownloadDirectory"], cookie)
+            downloadAvatarFromUserId(
+                userId, CONFIG["DownloadDirectory"], cookie, "R6", True
+            )
         except ValueError:
             print("[ERROR] Please make sure input is a valid number")
