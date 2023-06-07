@@ -1,6 +1,8 @@
 import requests, time
 from typing import TypedDict, Any, Literal
 from RobloSecurity import RobloSecurityCookie
+from Types.AvatarInformationResponse import AvatarInformationResponse
+from Types.AvatarRenderResponse import AvatarRenderResponse
 from bodyColors import convertAvatarInformationBodyColorIdsToHex
 
 
@@ -54,7 +56,7 @@ def getAvatarFileHashesFromUrl(url: str) -> ModelData:
 
 
 def generateCharacterModelCdnUrl(
-    avatarInformation: dict[str, Any],
+    avatarInformation: AvatarInformationResponse,
     cookie: RobloSecurityCookie,
     avatarType: Literal["R6", "R15"],
     useDefaultScale: bool,
@@ -102,7 +104,7 @@ def generateCharacterModelCdnUrl(
 
         match r.status_code:
             case 200:
-                json = r.json()
+                json: AvatarRenderResponse = r.json()
                 if json["state"] == "Completed":
                     return CdnUrl(json["imageUrl"])
                 time.sleep(1)

@@ -1,6 +1,7 @@
 import requests
-from typing import Any, Literal
+from typing import Literal
 from RobloSecurity import RobloSecurityCookie
+from Types.AvatarInformationResponse import AvatarInformationResponse
 from Cdn import (
     downloadFileFromHash,
     Hash,
@@ -16,7 +17,7 @@ class UserDoesNotExist(Exception):
         pass
 
 
-def getAvatarInformation(userId: int) -> dict[str, Any]:
+def getAvatarInformation(userId: int) -> AvatarInformationResponse:
     r = requests.get(f"https://avatar.roblox.com/v1/users/{userId}/avatar")
     if r.status_code == 400:
         raise UserDoesNotExist

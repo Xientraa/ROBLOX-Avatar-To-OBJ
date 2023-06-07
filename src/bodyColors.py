@@ -1,3 +1,5 @@
+from Types.AvatarInformationResponse import BodyColors
+
 bodyColors = {
     1: "#F2F3F3",
     2: "#A1A5A2",
@@ -210,8 +212,12 @@ bodyColors = {
 }
 
 
-def convertAvatarInformationBodyColorIdsToHex(colors: dict[str, int]) -> dict[str, str]:
+def convertAvatarInformationBodyColorIdsToHex(colors: BodyColors) -> dict[str, str]:
     output: dict[str, str] = {}
     for key in colors:
-        output[key.replace("Id", "")] = bodyColors[colors[key]]
+        value: int | None = colors.get(key)
+        assert isinstance(value, int), "Color is not a valid id."
+        hexColor = bodyColors.get(value)
+        assert isinstance(hexColor, str), f"Unable to convert id of {value} to color."
+        output[key.replace("Id", "")] = hexColor
     return output
