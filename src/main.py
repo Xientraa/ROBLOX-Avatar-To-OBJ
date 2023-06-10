@@ -1,7 +1,7 @@
 import os.path, json
 from RobloSecurity import RobloSecurityCookie
 from Avatar import downloadAvatarFromUserId
-from Flows import userIdFlow, avatarTypeFlow, useAvatarScalesFlow
+from Flows import userIdFlow, avatarTypeFlow, useDefaultAvatarScalesFlow
 
 
 SRC_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -18,8 +18,12 @@ if __name__ == "__main__":
     while True:
         userId = userIdFlow()
         avatarType = avatarTypeFlow()
-        useAvatarScales = useAvatarScalesFlow()
+        useDefaultAvatarScales = useDefaultAvatarScalesFlow()
         print(f"[INFO] Downloading userId: {userId}")
         downloadAvatarFromUserId(
-            userId, CONFIG["DownloadDirectory"], cookie, avatarType, useAvatarScales
+            userId,
+            CONFIG["DownloadDirectory"],
+            cookie,
+            avatarType,
+            useDefaultAvatarScales,
         )

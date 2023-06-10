@@ -22,8 +22,8 @@ def userIdFlow() -> int:
             print("[ERROR] Please make sure input is a valid number")
 
 
-def useAvatarScalesFlow() -> bool:
-    print("Use avatar scales (y/n)")
+def useDefaultAvatarScalesFlow() -> bool:
+    print("Use default avatar scales? [y/n]")
     while True:
         inputString = input(">> ").lower()
         if inputString in ["y", "n"]:
