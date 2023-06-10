@@ -18,7 +18,10 @@ if __name__ == "__main__":
     while True:
         userId = userIdFlow()
         avatarType = avatarTypeFlow()
-        useDefaultAvatarScales = useDefaultAvatarScalesFlow()
+        if avatarType == "R15":
+            useDefaultAvatarScales = useDefaultAvatarScalesFlow()
+        else:
+            useDefaultAvatarScales = True
         print(f"[INFO] Downloading userId: {userId}")
         downloadAvatarFromUserId(
             userId,
