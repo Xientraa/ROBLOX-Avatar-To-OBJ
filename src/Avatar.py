@@ -57,14 +57,19 @@ def downloadAvatarFromUserId(
     )
     unplugAlphaMapFromMTL(f'{downloadPath}/{modelInformation["obj"]}.mtl')
 
+    downloadedTextures: list[str] = []
     materialFileContents = open(
         f'{downloadPath}/{modelInformation["obj"]}.mtl', "r"
     ).read()
     for hashString in modelInformation["textures"]:
+        if hashString in downloadedTextures:
+            continue
+
         materialFileContents = materialFileContents.replace(
             hashString, f"{hashString}.png"
         )
         downloadFileFromHash(Hash(hashString), f"{downloadPath}/{hashString}.png")
+        downloadedTextures.append(hashString)
 
     open(f'{downloadPath}/{modelInformation["obj"]}.mtl', "w").write(
         materialFileContents
