@@ -34,7 +34,8 @@ def getModelInformationFromUrl(url: CdnUrl) -> ModelData:
 
 def getCdnUrlFromHash(hash: Hash) -> CdnUrl:
     st = 31
-    for i in range(0, 32):
+    hash_len = len(hash.hash)
+    for i in range(0, hash_len):
         st ^= ord(hash.hash[i])
     return CdnUrl(f"https://t{st % 8}.rbxcdn.com/{hash.hash}")
 
